@@ -1,3 +1,4 @@
+import actors.Supervisor
 import akka.actor.typed.ActorSystem
 import akka.event.slf4j.Logger
 import com.typesafe.config.ConfigFactory
@@ -13,7 +14,9 @@ object Main extends scala.App {
   Main.run()
 
   def run(): Unit = {
-    log.debug("Starting---------------------")
+    val actorSystem = ActorSystem[Nothing](Supervisor(), "actorSystem")
+
+
   }
 
 
