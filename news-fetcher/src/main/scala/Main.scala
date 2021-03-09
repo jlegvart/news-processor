@@ -18,13 +18,4 @@ object Main extends scala.App {
 
 
   }
-
-
-  def newsSources(): Seq[NewsSource] = {
-    val config = ConfigFactory.load("application")
-    val news = config.getObject("news")
-
-    CollectionConverters.asScala(news.keySet()).toSeq.map(s =>
-      NewsSource(s, CollectionConverters.asScala(news.get(s).unwrapped().asInstanceOf[util.ArrayList[String]]).toSeq))
-  }
 }

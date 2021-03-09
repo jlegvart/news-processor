@@ -2,7 +2,7 @@ package actors
 
 object Messages {
 
-  object News {
+  object Content {
     sealed trait Command
 
     case object GetFeed extends Command
