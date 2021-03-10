@@ -80,25 +80,46 @@ class ContentProvider(context: ActorContext[Command], cleanerActor: ActorRef[Mes
         feed = feed.copy(feed.channel.copy(item = feed.channel.item.tail))
 
         context.pipeToSelf(http.singleRequest(HttpRequest(uri = item.link))) {
-          case Success(response) => ProcessArticleResponse(ArticleResponseSuccess(response))
-          case Failure(e) => ProcessArticleResponse(ArticleResponseError(e))
+          case Success(response) => ProcessArticleResponse(item, 1, ArticleResponseSuccess(response))
+          case Failure(e) => ProcessArticleResponse(item, 1, ArticleResponseError(e))
         }
       }
       this
 
-    case ProcessArticleResponse(response) => response match {
+    case ProcessArticleResponse(item, attempt, response) => response match {
       case ArticleResponseSuccess(httpResponse: HttpResponse) => httpResponse match {
         case HttpResponse(StatusCodes.OK, _, entity, _) =>
           entity.dataBytes.runFold(ByteString(""))(_ ++ _).foreach { body =>
-            log.debug("Received response")
+            log.debug(s"Received response 200 for ${item.link}")
           }(context.executionContext)
 
           context.self ! ProcessFeedArticle
           this
 
-        case resp@HttpResponse(code, _, _, _) =>
-          log.error("Request failed, response code: " + code)
+        case resp@HttpResponse(StatusCodes.Found, headers, _, _) =>
+          log.warn(s"Received redirect for url: ${item.link}")
+
+          if (attempt < 3) {
+            headers.filter(header => header.name().equals("Location")).foreach { header =>
+              log.debug(s"Following redirect: from ${item.link} to ${header.value()}")
+
+              context.pipeToSelf(http.singleRequest(HttpRequest(uri = header.value()))) {
+                case Success(response) => ProcessArticleResponse(item, attempt + 1, ArticleResponseSuccess(response))
+                case Failure(e) => ProcessArticleResponse(item, attempt + 1, ArticleResponseError(e))
+              }
+            }
+          } else {
+            log.error(s"Number of max redirect attempts reached (${attempt}), skipping article")
+            context.self ! ProcessFeedArticle
+          }
+
           resp.discardEntityBytes()
+          this
+
+        case resp@HttpResponse(code, _, _, _) =>
+          log.error(s"Request failed for link: ${item.link} with code: ${code}")
+          resp.discardEntityBytes()
+          context.self ! ProcessFeedArticle
           this
       }
 

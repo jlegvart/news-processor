@@ -1,7 +1,7 @@
 package actors
 
 import akka.http.scaladsl.model.HttpResponse
-import model.{Channel, RSSFeed}
+import model.{Channel, Item, RSSFeed}
 
 object Messages {
 
@@ -22,7 +22,7 @@ object Messages {
     case class ArticleResponseSuccess(response: HttpResponse) extends ArticleResponse
     case class ArticleResponseError(e: Throwable) extends ArticleResponse
 
-    case class ProcessArticleResponse(response: ArticleResponse) extends Command
+    case class ProcessArticleResponse(item: Item, attempt: Int, response: ArticleResponse) extends Command
   }
 
   object Cleaner {
