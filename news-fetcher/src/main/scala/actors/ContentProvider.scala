@@ -4,7 +4,7 @@ import actors.Messages.Content._
 import akka.actor.typed.scaladsl.{AbstractBehavior, ActorContext, Behaviors}
 import akka.actor.typed.{ActorRef, Behavior}
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model.{HttpRequest, HttpResponse}
+import akka.http.scaladsl.model.{HttpRequest, HttpResponse, StatusCodes}
 import akka.util.ByteString
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.dataformat.xml.{JacksonXmlModule, XmlMapper}
@@ -38,6 +38,8 @@ class ContentProvider(context: ActorContext[Command], cleanerActor: ActorRef[Mes
 
   log.debug(s"Starting ContentProvider actor: ${source.key}")
 
+  var feed: RSSFeed = _
+
   override def onMessage(msg: Command): Behavior[Command] = msg match {
     //Get RSS feed
     case GetFeed =>
@@ -50,37 +52,56 @@ class ContentProvider(context: ActorContext[Command], cleanerActor: ActorRef[Mes
 
     //Process Feed response
     case ProcessFeedResponse(response) => response match {
-      //handle 200, etc...
-      case FeedResponseSuccess(success: HttpResponse) =>
-        success.entity.dataBytes.runFold(ByteString(""))(_ ++ _).foreach { body =>
-          context.self ! ProcessFeedArticles(mapper.readValue(body.utf8String, classOf[RSSFeed]))
-        }(context.executionContext)
-        this
+      case FeedResponseSuccess(httpResponse: HttpResponse) => httpResponse match {
+        case HttpResponse(StatusCodes.OK, _, entity, _) =>
+          entity.dataBytes.runFold(ByteString(""))(_ ++ _).foreach { body =>
+            feed = mapper.readValue(body.utf8String, classOf[RSSFeed])
+            context.self ! ProcessFeedArticle
+          }(context.executionContext)
+          this
 
-      case FeedResponseError(e) => log.error("Error during GetFeed request")
+        case resp@HttpResponse(code, _, _, _) =>
+          log.error("Request failed, response code: " + code)
+          resp.discardEntityBytes()
+          this
+      }
+
+      case FeedResponseError(e) =>
+        log.error("Error during feed retrieval")
+        log.error("Error", e)
         this
     }
 
     //Loop through articles, get content and pipe response to self
-    case ProcessFeedArticles(feed) =>
-      feed.channel.item.foreach { item =>
+    case ProcessFeedArticle =>
+      feed.channel.item.headOption.foreach { item =>
         log.debug(s"Sending request ${item.link}")
+
+        feed = feed.copy(feed.channel.copy(item = feed.channel.item.tail))
 
         context.pipeToSelf(http.singleRequest(HttpRequest(uri = item.link))) {
           case Success(response) => ProcessArticleResponse(ArticleResponseSuccess(response))
           case Failure(e) => ProcessArticleResponse(ArticleResponseError(e))
         }
-        //todo implement scheduler
       }
       this
 
     case ProcessArticleResponse(response) => response match {
-      //handle 200, etc...
-      case ArticleResponseSuccess(success: HttpResponse) =>
-        success.entity.dataBytes.runFold(ByteString(""))(_ ++ _).foreach { body =>
-          log.debug("Received response")
-        }(context.executionContext)
-        this
+      case ArticleResponseSuccess(httpResponse: HttpResponse) => httpResponse match {
+        case HttpResponse(StatusCodes.OK, _, entity, _) =>
+          entity.dataBytes.runFold(ByteString(""))(_ ++ _).foreach { body =>
+            log.debug("Received response")
+          }(context.executionContext)
+
+          context.self ! ProcessFeedArticle
+          this
+
+        case resp@HttpResponse(code, _, _, _) =>
+          log.error("Request failed, response code: " + code)
+          resp.discardEntityBytes()
+          this
+      }
+
       case ArticleResponseError(e) =>
         log.error("Error during article retrieval")
         log.error("Error", e)

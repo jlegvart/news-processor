@@ -9,7 +9,6 @@ object Messages {
     sealed trait Command
 
     case object GetFeed extends Command
-    case class GetArticle() extends Command
 
     sealed trait FeedResponse
     case class FeedResponseError(e: Throwable) extends FeedResponse
@@ -17,11 +16,12 @@ object Messages {
 
     case class ProcessFeedResponse(feedResponse: FeedResponse) extends Command
 
-    case class ProcessFeedArticles(feed: RSSFeed) extends Command
+    case object ProcessFeedArticle extends Command
 
     sealed trait ArticleResponse
     case class ArticleResponseSuccess(response: HttpResponse) extends ArticleResponse
     case class ArticleResponseError(e: Throwable) extends ArticleResponse
+
     case class ProcessArticleResponse(response: ArticleResponse) extends Command
   }
 
