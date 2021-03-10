@@ -1,5 +1,8 @@
 package actors
 
+import akka.http.scaladsl.model.HttpResponse
+import model.{Channel, RSSFeed}
+
 object Messages {
 
   object Content {
@@ -8,8 +11,18 @@ object Messages {
     case object GetFeed extends Command
     case class GetArticle() extends Command
 
-    case class ProcessFeedResponse() extends Command
-    case class ProcessArticleResponse() extends Command
+    sealed trait FeedResponse
+    case class FeedResponseError(e: Throwable) extends FeedResponse
+    case class FeedResponseSuccess(response: HttpResponse) extends FeedResponse
+
+    case class ProcessFeedResponse(feedResponse: FeedResponse) extends Command
+
+    case class ProcessFeedArticles(feed: RSSFeed) extends Command
+
+    sealed trait ArticleResponse
+    case class ArticleResponseSuccess(response: HttpResponse) extends ArticleResponse
+    case class ArticleResponseError(e: Throwable) extends ArticleResponse
+    case class ProcessArticleResponse(response: ArticleResponse) extends Command
   }
 
   object Cleaner {
