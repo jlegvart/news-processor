@@ -1,7 +1,7 @@
 package actors
 
 import akka.http.scaladsl.model.HttpResponse
-import model.{Channel, Item, RSSFeed}
+import model.{Channel, FeedArticle, Item, RSSFeed}
 
 object Messages {
 
@@ -28,7 +28,7 @@ object Messages {
   object Cleaner {
     sealed trait Command
 
-    case class ProcessArticle() extends Command
+    case class ProcessArticle(article: FeedArticle) extends Command
   }
 
   object Persistence {

@@ -13,12 +13,15 @@ object Cleaner {
 
 class Cleaner(context: ActorContext[Command], persistenceActor: ActorRef[Messages.Persistence.Command]) extends AbstractBehavior[Command](context) {
 
-  context.log.debug("Starting Cleaner actor")
+  val log = context.log
+
+  log.debug("Starting Cleaner actor")
 
   override def onMessage(msg: Command): Behavior[Command] = {
     msg match {
-      case ProcessArticle() => context.log.debug("Process article received")
-      this
+      case ProcessArticle(article) =>
+        log.debug("Feed article received")
+        this
     }
   }
 }
