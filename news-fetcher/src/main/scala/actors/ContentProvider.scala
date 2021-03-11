@@ -9,8 +9,10 @@ import akka.util.ByteString
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.dataformat.xml.{JacksonXmlModule, XmlMapper}
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
-import model.{FeedSource, RSSFeed}
+import model.{FeedArticle, FeedSource, RSSFeed}
 
+import java.time.OffsetDateTime
+import java.time.format.DateTimeFormatter
 import scala.util.{Failure, Success}
 
 
@@ -51,29 +53,32 @@ class ContentProvider(context: ActorContext[Command], cleanerActor: ActorRef[Mes
       this
 
     //Process Feed response
-    case ProcessFeedResponse(response) => response match {
-      case FeedResponseSuccess(httpResponse: HttpResponse) => httpResponse match {
-        case HttpResponse(StatusCodes.OK, _, entity, _) =>
-          entity.dataBytes.runFold(ByteString(""))(_ ++ _).foreach { body =>
-            feed = mapper.readValue(body.utf8String, classOf[RSSFeed])
-            context.self ! ProcessFeedArticle
-          }(context.executionContext)
-          this
+    case ProcessFeedResponse(response) =>
+      log.debug("Received ProcessFeedResponse message")
+      response match {
+        case FeedResponseSuccess(httpResponse: HttpResponse) => httpResponse match {
+          case HttpResponse(StatusCodes.OK, _, entity, _) =>
+            entity.dataBytes.runFold(ByteString(""))(_ ++ _).foreach { body =>
+              feed = mapper.readValue(body.utf8String, classOf[RSSFeed])
+              context.self ! ProcessFeedArticle
+            }(context.executionContext)
+            this
 
-        case resp@HttpResponse(code, _, _, _) =>
-          log.error("Request failed, response code: " + code)
-          resp.discardEntityBytes()
+          case resp@HttpResponse(code, _, _, _) =>
+            log.error(s"Request for RSS feed failed, response code: " + code)
+            resp.discardEntityBytes()
+            this
+        }
+
+        case FeedResponseError(e) =>
+          log.error("Error during feed retrieval")
+          log.error("Error", e)
           this
       }
 
-      case FeedResponseError(e) =>
-        log.error("Error during feed retrieval")
-        log.error("Error", e)
-        this
-    }
-
     //Loop through articles, get content and pipe response to self
     case ProcessFeedArticle =>
+      log.debug("Received ProcessFeedArticle message")
       feed.channel.item.headOption.foreach { item =>
         log.debug(s"Sending request ${item.link}")
 
@@ -86,47 +91,53 @@ class ContentProvider(context: ActorContext[Command], cleanerActor: ActorRef[Mes
       }
       this
 
-    case ProcessArticleResponse(item, attempt, response) => response match {
-      case ArticleResponseSuccess(httpResponse: HttpResponse) => httpResponse match {
-        case HttpResponse(StatusCodes.OK, _, entity, _) =>
-          entity.dataBytes.runFold(ByteString(""))(_ ++ _).foreach { body =>
-            log.debug(s"Received response 200 for ${item.link}")
-          }(context.executionContext)
+    case ProcessArticleResponse(item, attempt, response) =>
+      log.debug("Received ProcessArticleResponse message")
+      response match {
+        case ArticleResponseSuccess(httpResponse: HttpResponse) => httpResponse match {
+          case HttpResponse(StatusCodes.OK, _, entity, _) =>
+            entity.dataBytes.runFold(ByteString(""))(_ ++ _).foreach { body =>
+              log.debug(s"Received response 200 for ${item.link}")
+              val article = FeedArticle(source.key, feed.channel.title, item.title, item.description, item.link, item.guid, body.utf8String,
+                OffsetDateTime.parse(item.pubDate, DateTimeFormatter.RFC_1123_DATE_TIME), OffsetDateTime.now(), Seq.empty)
 
-          context.self ! ProcessFeedArticle
-          this
+              cleanerActor ! Messages.Cleaner.ProcessArticle(article)
+            }(context.executionContext)
 
-        case resp@HttpResponse(StatusCodes.Found, headers, _, _) =>
-          log.warn(s"Received redirect for url: ${item.link}")
-
-          if (attempt < 3) {
-            headers.filter(header => header.name().equals("Location")).foreach { header =>
-              log.debug(s"Following redirect: from ${item.link} to ${header.value()}")
-
-              context.pipeToSelf(http.singleRequest(HttpRequest(uri = header.value()))) {
-                case Success(response) => ProcessArticleResponse(item, attempt + 1, ArticleResponseSuccess(response))
-                case Failure(e) => ProcessArticleResponse(item, attempt + 1, ArticleResponseError(e))
-              }
-            }
-          } else {
-            log.error(s"Number of max redirect attempts reached (${attempt}), skipping article")
             context.self ! ProcessFeedArticle
-          }
+            this
 
-          resp.discardEntityBytes()
-          this
+          case resp@HttpResponse(StatusCodes.Found, headers, _, _) =>
+            log.warn(s"Received redirect for url: ${item.link}")
 
-        case resp@HttpResponse(code, _, _, _) =>
-          log.error(s"Request failed for link: ${item.link} with code: ${code}")
-          resp.discardEntityBytes()
-          context.self ! ProcessFeedArticle
+            if (attempt < 3) {
+              headers.filter(header => header.name().equals("Location")).foreach { header =>
+                log.debug(s"Following redirect: from ${item.link} to ${header.value()}")
+
+                context.pipeToSelf(http.singleRequest(HttpRequest(uri = header.value()))) {
+                  case Success(response) => ProcessArticleResponse(item, attempt + 1, ArticleResponseSuccess(response))
+                  case Failure(e) => ProcessArticleResponse(item, attempt + 1, ArticleResponseError(e))
+                }
+              }
+            } else {
+              log.error(s"Number of max redirect attempts reached (${attempt}), skipping article")
+              context.self ! ProcessFeedArticle
+            }
+
+            resp.discardEntityBytes()
+            this
+
+          case resp@HttpResponse(code, _, _, _) =>
+            log.error(s"Request failed for link: ${item.link} with code: ${code}")
+            resp.discardEntityBytes()
+            context.self ! ProcessFeedArticle
+            this
+        }
+
+        case ArticleResponseError(e) =>
+          log.error("Error during article retrieval")
+          log.error("Error", e)
           this
       }
-
-      case ArticleResponseError(e) =>
-        log.error("Error during article retrieval")
-        log.error("Error", e)
-        this
-    }
   }
 }
