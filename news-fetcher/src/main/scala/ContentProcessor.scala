@@ -4,7 +4,7 @@ import org.jsoup.Jsoup
 
 case object ContentProcessor {
 
-  val filterTags = "img,a,svg,button,form,figure,dl"
+  val filterTags = "img,a,svg,button,form,figure,dl,iframe"
   val filterPhrases = List(
     "share page",
     "related links",
@@ -15,13 +15,22 @@ case object ContentProcessor {
     "subscribe to our channel"
   )
 
-  def processContent(article: FeedArticle): FeedArticle = {
-    val elements = Jsoup.parse(article.content).getElementsByTag("article")
-    elements.select(filterTags).remove()
+  def processContent(article: FeedArticle): Option[FeedArticle] = {
+    processContent(article.content) match {
+      case Some(x) => Some(article.copy(content = x, tags = processTags(article.link).toSeq))
+      case None => None
+    }
+  }
 
-    val content = filterPhrases.foldLeft(elements.text())((a, b) => StringUtils.removeIgnoreCase(a, b))
+  def processContent(content: String): Option[String] = {
+    val elements = Jsoup.parse(content).getElementsByTag("article")
 
-    article.copy(content = content, tags = processTags(article.link).toSeq)
+    if (elements.isEmpty) {
+      None
+    } else {
+      elements.select(filterTags).remove()
+      Some(filterPhrases.foldLeft(elements.text())((a, b) => StringUtils.removeIgnoreCase(a, b)))
+    }
   }
 
   def processTags(link: String): Set[String] = {

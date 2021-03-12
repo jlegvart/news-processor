@@ -26,22 +26,11 @@ class ContentProcessorTest extends FunSuite {
 
   }
 
-  test("ContentProcessor.processContent.bbc") {
-    val bbc1 = FeedArticle("bbc", "BBC", "Sarah Everard case: Met Police faces watchdog investigation",
-      "The Met is facing questions over its response to an alleged case of indecent exposure involving the 33-year-old's suspected killer.",
-    "https://www.bbc.com/news/uk-56368531", "https://www.bbc.com/news/uk-56368531", Source.fromResource("feed/bbc.html").getLines().mkString,
-      OffsetDateTime.now, OffsetDateTime.now, Seq.empty)
+  test("ContentProcessor.processContent") {
+    assert(ContentProcessor.processContent(Source.fromResource("feed/bbc.html").getLines().mkString).isDefined)
+    assert(ContentProcessor.processContent(Source.fromResource("feed/cnn.html").getLines().mkString).isDefined)
 
-    println(ContentProcessor.processContent(bbc1).content)
-  }
-
-  test("ContentProcessor.processContent.cnn") {
-    val cnn1 = FeedArticle("cnn", "CNN", "Trump's time in White House could end up benefiting New York prosecutors",
-      "Former President Donald Trump's time in the White House helped shield him from investigations and some lawsuits but it might open him up to greater legal peril from New York prosecutors investigating his finances.",
-      "https://edition.cnn.com/2021/03/12/politics/trump-statute-of-limitations/index.html", "https://edition.cnn.com/2021/03/12/politics/trump-statute-of-limitations/index.html",
-      Source.fromResource("feed/cnn.html").getLines().mkString, OffsetDateTime.now, OffsetDateTime.now, Seq.empty)
-
-    println(ContentProcessor.processContent(cnn1).content)
+    assert(ContentProcessor.processContent("<html><body><h1/>no article</body></html>").isEmpty)
   }
 
 }
