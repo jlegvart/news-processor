@@ -1,3 +1,4 @@
+import contentprocessor.ContentProcessor
 import model.FeedArticle
 import org.scalatest.FunSuite
 

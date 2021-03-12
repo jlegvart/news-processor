@@ -1,3 +1,3 @@
 package model
 
-case class FeedSource(key: String, sources: Seq[String])
+case class FeedSource(key: String, source: String)

@@ -36,6 +36,6 @@ class Fetcher(context: ActorContext[Any], cleanerActor: ActorRef[Messages.Cleane
     val news = config.getObject("news")
 
     CollectionConverters.asScala(news.keySet()).toSeq.map(s =>
-      FeedSource(s, CollectionConverters.asScala(news.get(s).unwrapped().asInstanceOf[util.ArrayList[String]]).toSeq))
+      FeedSource(s, CollectionConverters.asScala(news.get(s).unwrapped().asInstanceOf[util.ArrayList[String]]).head))
   }
 }

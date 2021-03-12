@@ -45,8 +45,8 @@ class ContentProvider(context: ActorContext[Command], cleanerActor: ActorRef[Mes
   override def onMessage(msg: Command): Behavior[Command] = msg match {
     //Get RSS feed
     case GetFeed =>
-      log.debug("Received GetFeed message")
-      context.pipeToSelf(http.singleRequest(HttpRequest(uri = "https://feeds.bbci.co.uk/news/rss.xml"))) {
+      log.debug(s"Requesting Feed from ${source.source}")
+      context.pipeToSelf(http.singleRequest(HttpRequest(uri = source.source))) {
         case Success(response) => ProcessFeedResponse(FeedResponseSuccess(response))
         case Failure(e) => ProcessFeedResponse(FeedResponseError(e))
       }
@@ -65,7 +65,7 @@ class ContentProvider(context: ActorContext[Command], cleanerActor: ActorRef[Mes
             this
 
           case resp@HttpResponse(code, _, _, _) =>
-            log.error(s"Request for RSS feed failed, response code: " + code)
+            log.error(s"Request for RSS feed from ${source.source} failed, response code: " + code)
             resp.discardEntityBytes()
             this
         }

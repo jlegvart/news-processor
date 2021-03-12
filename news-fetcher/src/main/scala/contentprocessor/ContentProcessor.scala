@@ -1,3 +1,5 @@
+package contentprocessor
+
 import model.{FeedArticle, Tag}
 import org.apache.commons.lang3.StringUtils
 import org.jsoup.Jsoup

@@ -34,7 +34,7 @@ object Messages {
   object Persistence {
     sealed trait Command
 
-    case class Persist() extends Command
+    case class Persist(article: FeedArticle) extends Command
   }
 
 
