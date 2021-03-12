@@ -13,24 +13,32 @@ lazy val root = (project in file("."))
 lazy val newsFetcher = (project in file("news-fetcher"))
   .settings(
     name := "News Fetcher",
-    libraryDependencies ++= commonDependencies
+    libraryDependencies ++= commonDependencies ++ Seq(
+      dependencies.jsoup,
+      dependencies.commonsLang3
+    )
   )
 
 // DEPENDENCIES
 
 lazy val dependencies =
   new {
-    val zioV = "1.0.4-2"
-    val zioActorsV = "0.0.9"
-    val typesafeConfigV = "1.4.1"
+    val zioVersion = "1.0.4-2"
+    val zioActorsVersion = "0.0.9"
+    val typesafeConfigVersion = "1.4.1"
     val logbackVersion = "1.2.3"
     val akkaVersion = "2.6.13"
     val akkaHttpVersion = "10.2.4"
+    val jsoupVersion = "1.13.1"
+    val commonsLang3Version = "3.12.0"
 
-    val zio = "dev.zio" %% "zio" % zioV
-    val zioActors = "dev.zio" %% "zio-actors" % zioActorsV
-    val typesafeConfig = "com.typesafe" % "config" % typesafeConfigV
+    val scalaTestVersion = "3.0.8"
+
+    val zio = "dev.zio" %% "zio" % zioVersion
+    val zioActors = "dev.zio" %% "zio-actors" % zioActorsVersion
+    val typesafeConfig = "com.typesafe" % "config" % typesafeConfigVersion
     val logback = "ch.qos.logback" % "logback-classic" % logbackVersion
+    val jsoup = "org.jsoup" % "jsoup" % jsoupVersion
 
     val akkaStream = "com.typesafe.akka" %% "akka-stream" % akkaVersion
     val akkaActors = "com.typesafe.akka" %% "akka-actor-typed" % akkaVersion
@@ -40,6 +48,9 @@ lazy val dependencies =
     val jacksonCore = "com.fasterxml.jackson.dataformat" % "jackson-dataformat-xml" % "2.12.2"
     val jacksonModule = "com.fasterxml.jackson.module" %% "jackson-module-scala" % "2.12.2"
 
+    val commonsLang3 = "org.apache.commons" % "commons-lang3" % commonsLang3Version
+
+    val scalatest = "org.scalatest" %% "scalatest" % scalaTestVersion % Test
     val akkaActorsTestkit = "com.typesafe.akka" %% "akka-actor-testkit-typed" % akkaVersion % Test
   }
 
@@ -53,5 +64,6 @@ lazy val commonDependencies = Seq(
   dependencies.akkaActors,
   dependencies.akkaSlf4j,
   dependencies.jacksonCore,
-  dependencies.jacksonModule
+  dependencies.jacksonModule,
+  dependencies.scalatest
 )

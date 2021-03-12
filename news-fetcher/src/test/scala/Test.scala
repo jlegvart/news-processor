@@ -1,14 +1,15 @@
 import com.fasterxml.jackson.databind.DeserializationFeature
-import com.fasterxml.jackson.dataformat.xml.XmlMapper
-import com.fasterxml.jackson.module.scala.{DefaultScalaModule, ScalaObjectMapper}
-import com.fasterxml.jackson.dataformat.xml.JacksonXmlModule
-import model.{Channel, RSSFeed}
+import com.fasterxml.jackson.dataformat.xml.{JacksonXmlModule, XmlMapper}
+import com.fasterxml.jackson.module.scala.DefaultScalaModule
+import model.RSSFeed
 
+import java.time.OffsetDateTime
+import java.time.format.DateTimeFormatter
 import scala.io.Source
 
 object Test extends App {
 
-  val str = Source.fromResource("source.xml").getLines().mkString
+  val str = Source.fromResource("feed.xml").getLines().mkString
 
   val module = new JacksonXmlModule
   module.setDefaultUseWrapper(false)
@@ -20,7 +21,12 @@ object Test extends App {
 
   val feed = mapper.readValue(str, classOf[RSSFeed])
 
-  println(feed)
+  feed.channel.item.foreach(println(_))
 
   assert(feed.channel.item.size == 55)
+
+  val datetime = OffsetDateTime.parse("Wed, 10 Mar 2021 16:51:18 GMT", DateTimeFormatter.RFC_1123_DATE_TIME)
+
+  println(datetime)
+  println()
 }
