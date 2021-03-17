@@ -14,9 +14,7 @@ object Cleaner {
 
 class Cleaner(context: ActorContext[Command], persistenceActor: ActorRef[Messages.Persistence.Command]) extends AbstractBehavior[Command](context) {
 
-  val log = context.log
-
-  log.debug("Starting Cleaner actor")
+  context.log.debug("Starting Cleaner actor")
 
   override def onMessage(msg: Command): Behavior[Command] = {
     msg match {
