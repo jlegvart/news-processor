@@ -30,6 +30,8 @@ class ContentProvider(context: ActorContext[Command], cleanerActor: ActorRef[Mes
 
   implicit val system = context.system
 
+  val scheduleDelay = 1 minute
+
   val http = Http(system)
 
   val module = new JacksonXmlModule
@@ -56,6 +58,9 @@ class ContentProvider(context: ActorContext[Command], cleanerActor: ActorRef[Mes
 
     //Process Feed response
     case ProcessFeedResponse(response) =>
+      context.log.debug(s"Scheduling next iteration, dalay: ${scheduleDelay}")
+      context.scheduleOnce(scheduleDelay, context.self, GetFeed)
+
       response match {
         case FeedResponseSuccess(httpResponse: HttpResponse) => httpResponse match {
           case HttpResponse(StatusCodes.OK, _, entity, _) =>
