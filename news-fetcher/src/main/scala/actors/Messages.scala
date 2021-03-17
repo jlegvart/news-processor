@@ -1,6 +1,7 @@
 package actors
 
 import akka.http.scaladsl.model.HttpResponse
+import com.sksamuel.elastic4s.Response
 import model.{Channel, FeedArticle, Item, RSSFeed}
 
 object Messages {
@@ -35,6 +36,11 @@ object Messages {
     sealed trait Command
 
     case class Persist(article: FeedArticle) extends Command
+    case class ProcessPersistenceResponse(article: FeedArticle, persistenceResponse: PersistenceResponse) extends Command
+
+    sealed trait PersistenceResponse
+    case class PersistenceResponseSuccess(elasticResponse: Response[_]) extends PersistenceResponse
+    case class PersistenceResponseError(e: Throwable) extends PersistenceResponse
   }
 
 

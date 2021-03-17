@@ -15,7 +15,5 @@ object Main extends scala.App {
 
   def run(): Unit = {
     val actorSystem = ActorSystem[Nothing](Supervisor(), "actorSystem")
-
-
   }
 }

@@ -1,4 +1,4 @@
-import com.fasterxml.jackson.databind.DeserializationFeature
+import com.fasterxml.jackson.databind.{DeserializationFeature, ObjectMapper}
 import com.fasterxml.jackson.dataformat.xml.{JacksonXmlModule, XmlMapper}
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import model.RSSFeed
@@ -21,12 +21,14 @@ object Test extends App {
 
   val feed = mapper.readValue(str, classOf[RSSFeed])
 
-  feed.channel.item.foreach(println(_))
-
   assert(feed.channel.item.size == 55)
 
   val datetime = OffsetDateTime.parse("Wed, 10 Mar 2021 16:51:18 GMT", DateTimeFormatter.RFC_1123_DATE_TIME)
 
   println(datetime)
   println()
+
+  val jacksonJson = new ObjectMapper()
+  jacksonJson.registerModule(DefaultScalaModule)
+  println(jacksonJson.writeValueAsString(feed))
 }

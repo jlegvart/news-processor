@@ -35,6 +35,8 @@
     <logger name="akka" level="DEBUG"/>
     <logger name="actors" level="DEBUG"/>
 
+    <logger name="com.sksamuel.elastic4s" level="INFO"/>
+
     <root level="DEBUG">
         <!--<appender-ref ref="ASYNCFILE" />-->
         <appender-ref ref="ASYNCSTDOUT"/>

@@ -30,7 +30,9 @@ lazy val dependencies =
     val akkaVersion = "2.6.13"
     val akkaHttpVersion = "10.2.4"
     val jsoupVersion = "1.13.1"
+    val jacksonVersion = "2.12.2"
     val commonsLang3Version = "3.12.0"
+    val elasticClientVersion = "7.11.0"
 
     val scalaTestVersion = "3.0.8"
 
@@ -45,8 +47,13 @@ lazy val dependencies =
     val akkaHttp = "com.typesafe.akka" %% "akka-http" % akkaHttpVersion
     val akkaSlf4j = "com.typesafe.akka" %% "akka-slf4j" % akkaVersion
 
-    val jacksonCore = "com.fasterxml.jackson.dataformat" % "jackson-dataformat-xml" % "2.12.2"
-    val jacksonModule = "com.fasterxml.jackson.module" %% "jackson-module-scala" % "2.12.2"
+    val jackson = "com.fasterxml.jackson.core" % "jackson-databind" % jacksonVersion
+    val jacksonXml = "com.fasterxml.jackson.dataformat" % "jackson-dataformat-xml" % jacksonVersion
+    val jacksonScalaModule = "com.fasterxml.jackson.module" %% "jackson-module-scala" % jacksonVersion
+    val jacksonJava8Module = "com.fasterxml.jackson.datatype" % "jackson-datatype-jsr310" % jacksonVersion
+
+    val elasticClient =   "com.sksamuel.elastic4s" %% "elastic4s-client-esjava" %  elasticClientVersion
+    val elasticJackson =   "com.sksamuel.elastic4s" %% "elastic4s-json-jackson" %  elasticClientVersion
 
     val commonsLang3 = "org.apache.commons" % "commons-lang3" % commonsLang3Version
 
@@ -63,7 +70,11 @@ lazy val commonDependencies = Seq(
   dependencies.akkaHttp,
   dependencies.akkaActors,
   dependencies.akkaSlf4j,
-  dependencies.jacksonCore,
-  dependencies.jacksonModule,
+  dependencies.jackson,
+  dependencies.jacksonXml,
+  dependencies.jacksonScalaModule,
+  dependencies.jacksonJava8Module,
+  dependencies.elasticClient,
+  dependencies.elasticJackson,
   dependencies.scalatest
 )

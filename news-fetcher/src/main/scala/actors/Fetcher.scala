@@ -3,7 +3,7 @@ package actors
 import actors.Messages.Content.GetFeed
 import akka.actor.typed.scaladsl.{AbstractBehavior, ActorContext, Behaviors}
 import akka.actor.typed.{ActorRef, Behavior}
-import com.typesafe.config.ConfigFactory
+import config.AppConfig
 import model.FeedSource
 
 import java.util
@@ -32,8 +32,7 @@ class Fetcher(context: ActorContext[Any], cleanerActor: ActorRef[Messages.Cleane
   }
 
   def newsSources(): Seq[FeedSource] = {
-    val config = ConfigFactory.load("application")
-    val news = config.getObject("news")
+    val news = AppConfig.config.getObject("news")
 
     CollectionConverters.asScala(news.keySet()).toSeq.map(s =>
       FeedSource(s, CollectionConverters.asScala(news.get(s).unwrapped().asInstanceOf[util.ArrayList[String]]).head))
