@@ -4,6 +4,6 @@ import com.typesafe.config.ConfigFactory
 
 case object AppConfig {
 
-  val config = ConfigFactory.load("application")
+  val config = ConfigFactory.load("local")
 
 }

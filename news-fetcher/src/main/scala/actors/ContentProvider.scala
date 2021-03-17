@@ -14,8 +14,9 @@ import org.slf4j.LoggerFactory
 
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
-import scala.util.{Failure, Success}
+import scala.collection.mutable
 import scala.concurrent.duration._
+import scala.util.{Failure, Success}
 
 
 object ContentProvider {
@@ -30,8 +31,6 @@ class ContentProvider(context: ActorContext[Command], cleanerActor: ActorRef[Mes
 
   implicit val system = context.system
 
-  val scheduleDelay = 1 minute
-
   val http = Http(system)
 
   val module = new JacksonXmlModule
@@ -42,9 +41,12 @@ class ContentProvider(context: ActorContext[Command], cleanerActor: ActorRef[Mes
   mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
   mapper.configure(DeserializationFeature.ACCEPT_EMPTY_STRING_AS_NULL_OBJECT, true);
 
-  log.debug(s"Starting ContentProvider actor: ${source.key}")
+  context.log.debug(s"Starting ContentProvider actor: ${source.key}")
 
+  val cacheSize = 100
   var feed: RSSFeed = _
+  val scheduleDelay = 1 minute
+  var cache: mutable.LinkedHashSet[String] = mutable.LinkedHashSet()
 
   override def onMessage(msg: Command): Behavior[Command] = msg match {
     //Get RSS feed
@@ -86,13 +88,18 @@ class ContentProvider(context: ActorContext[Command], cleanerActor: ActorRef[Mes
     //Loop through articles, get content and pipe response to self
     case ProcessFeedArticle =>
       feed.channel.item.headOption.foreach { item =>
-        context.log.debug(s"Sending request ${item.link}")
-
         feed = feed.copy(feed.channel.copy(item = feed.channel.item.tail))
 
-        context.pipeToSelf(http.singleRequest(HttpRequest(uri = item.link))) {
-          case Success(response) => ProcessArticleResponse(item, 1, ArticleResponseSuccess(response))
-          case Failure(e) => ProcessArticleResponse(item, 1, ArticleResponseError(e))
+        if (!cache.contains(item.guid)) {
+          context.log.debug(s"Sending request ${item.link}")
+
+          context.pipeToSelf(http.singleRequest(HttpRequest(uri = item.link))) {
+            case Success(response) => ProcessArticleResponse(item, 1, ArticleResponseSuccess(response))
+            case Failure(e) => ProcessArticleResponse(item, 1, ArticleResponseError(e))
+          }
+        } else {
+          context.log.debug(s"Article ${item.guid} already in cache")
+          context.self ! ProcessFeedArticle
         }
       }
       this
@@ -109,6 +116,7 @@ class ContentProvider(context: ActorContext[Command], cleanerActor: ActorRef[Mes
               cleanerActor ! Messages.Cleaner.ProcessArticle(article)
             }(context.executionContext)
 
+            cacheItem(item.guid)
             context.self ! ProcessFeedArticle
             this
 
@@ -126,6 +134,8 @@ class ContentProvider(context: ActorContext[Command], cleanerActor: ActorRef[Mes
               }
             } else {
               context.log.error(s"Number of max redirect attempts reached (${attempt}), skipping article")
+
+              cacheItem(item.guid)
               context.self ! ProcessFeedArticle
             }
 
@@ -135,6 +145,8 @@ class ContentProvider(context: ActorContext[Command], cleanerActor: ActorRef[Mes
           case resp@HttpResponse(code, _, _, _) =>
             context.log.error(s"Request failed for link: ${item.link} with code: ${code}")
             resp.discardEntityBytes()
+
+            cacheItem(item.guid)
             context.self ! ProcessFeedArticle
             this
         }
@@ -144,5 +156,13 @@ class ContentProvider(context: ActorContext[Command], cleanerActor: ActorRef[Mes
           context.log.error("Error", e)
           this
       }
+  }
+
+  private def cacheItem(guid: String): Unit = {
+    if (cache.size >= cacheSize) {
+      cache = cache.drop(1)
+    }
+
+    cache += guid
   }
 }
