@@ -11,6 +11,7 @@ import com.fasterxml.jackson.dataformat.xml.{JacksonXmlModule, XmlMapper}
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import model.{FeedArticle, FeedSource, RSSFeed}
 import org.slf4j.LoggerFactory
+import service.{ContentProviderException, RSSContentProviderService}
 
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
@@ -46,42 +47,31 @@ class ContentProvider(context: ActorContext[Command], cleanerActor: ActorRef[Mes
   val cacheSize = 100
   var feed: RSSFeed = _
   val scheduleDelay = 1 minute
+  val contentProviderService = RSSContentProviderService()
   var cache: mutable.LinkedHashSet[String] = mutable.LinkedHashSet()
 
   override def onMessage(msg: Command): Behavior[Command] = msg match {
     //Get RSS feed
     case GetFeed =>
-      context.log.debug(s"Requesting Feed from ${source.source}")
-      context.pipeToSelf(http.singleRequest(HttpRequest(uri = source.source))) {
-        case Success(response) => ProcessFeedResponse(FeedResponseSuccess(response))
+      context.pipeToSelf(contentProviderService.getFeed(source.source)) {
+        case Success(feed) => ProcessFeedResponse(FeedResponseSuccess(feed))
         case Failure(e) => ProcessFeedResponse(FeedResponseError(e))
       }
       this
 
     //Process Feed response
     case ProcessFeedResponse(response) =>
-      context.log.debug(s"Scheduling next iteration, dalay: ${scheduleDelay}")
+      context.log.debug(s"Scheduling next GetFeed iteration, dalay: ${scheduleDelay}")
       context.scheduleOnce(scheduleDelay, context.self, GetFeed)
 
       response match {
-        case FeedResponseSuccess(httpResponse: HttpResponse) => httpResponse match {
-          case HttpResponse(StatusCodes.OK, _, entity, _) =>
-            log.debug(s"Received OK (200) for Feed request: ${source.source}")
-            entity.dataBytes.runFold(ByteString(""))(_ ++ _).foreach { body =>
-              feed = mapper.readValue(body.utf8String, classOf[RSSFeed])
-              context.self ! ProcessFeedArticle
-            }(context.executionContext)
-            this
+        case FeedResponseSuccess(responseFeed) =>
+          feed = responseFeed
+          context.self ! ProcessFeedArticle
+          this
 
-          case resp@HttpResponse(code, _, _, _) =>
-            context.log.error(s"Request for RSS feed from ${source.source} failed, response code: " + code)
-            resp.discardEntityBytes()
-            this
-        }
-
-        case FeedResponseError(e) =>
-          context.log.error("Error during feed retrieval")
-          context.log.error("Error", e)
+        case FeedResponseError(e: ContentProviderException) =>
+          context.log.error("Error during feed retrieval", e)
           this
       }
 

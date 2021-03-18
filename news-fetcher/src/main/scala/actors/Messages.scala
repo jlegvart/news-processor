@@ -13,7 +13,7 @@ object Messages {
 
     sealed trait FeedResponse
     case class FeedResponseError(e: Throwable) extends FeedResponse
-    case class FeedResponseSuccess(response: HttpResponse) extends FeedResponse
+    case class FeedResponseSuccess(feed: RSSFeed) extends FeedResponse
 
     case class ProcessFeedResponse(feedResponse: FeedResponse) extends Command
 
