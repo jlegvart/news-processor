@@ -1,8 +1,7 @@
 package actors
 
-import akka.http.scaladsl.model.HttpResponse
 import com.sksamuel.elastic4s.Response
-import model.{Channel, FeedArticle, Item, RSSFeed}
+import model.{FeedArticle, Item, RSSFeed}
 
 object Messages {
 
@@ -20,10 +19,10 @@ object Messages {
     case object ProcessFeedArticle extends Command
 
     sealed trait ArticleResponse
-    case class ArticleResponseSuccess(response: HttpResponse) extends ArticleResponse
+    case class ArticleResponseSuccess(article: FeedArticle) extends ArticleResponse
     case class ArticleResponseError(e: Throwable) extends ArticleResponse
 
-    case class ProcessArticleResponse(item: Item, attempt: Int, response: ArticleResponse) extends Command
+    case class ProcessArticleResponse(item: Item, response: ArticleResponse) extends Command
   }
 
   object Cleaner {

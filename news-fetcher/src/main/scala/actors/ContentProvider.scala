@@ -4,17 +4,13 @@ import actors.Messages.Content._
 import akka.actor.typed.scaladsl.{AbstractBehavior, ActorContext, Behaviors}
 import akka.actor.typed.{ActorRef, Behavior}
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model.{HttpRequest, HttpResponse, StatusCodes}
-import akka.util.ByteString
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.dataformat.xml.{JacksonXmlModule, XmlMapper}
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
-import model.{FeedArticle, FeedSource, RSSFeed}
+import model.{FeedSource, RSSFeed}
 import org.slf4j.LoggerFactory
 import service.{ContentProviderException, RSSContentProviderService}
 
-import java.time.OffsetDateTime
-import java.time.format.DateTimeFormatter
 import scala.collection.mutable
 import scala.concurrent.duration._
 import scala.util.{Failure, Success}
@@ -83,9 +79,9 @@ class ContentProvider(context: ActorContext[Command], cleanerActor: ActorRef[Mes
         if (!cache.contains(item.guid)) {
           context.log.debug(s"Sending request ${item.link}")
 
-          context.pipeToSelf(http.singleRequest(HttpRequest(uri = item.link))) {
-            case Success(response) => ProcessArticleResponse(item, 1, ArticleResponseSuccess(response))
-            case Failure(e) => ProcessArticleResponse(item, 1, ArticleResponseError(e))
+          context.pipeToSelf(contentProviderService.getArticle(source.key, feed.channel.title, item.link, item, 1)) {
+            case Success(response) => ProcessArticleResponse(item, ArticleResponseSuccess(response))
+            case Failure(e) => ProcessArticleResponse(item, ArticleResponseError(e))
           }
         } else {
           context.log.debug(s"Article ${item.guid} already in cache")
@@ -94,56 +90,18 @@ class ContentProvider(context: ActorContext[Command], cleanerActor: ActorRef[Mes
       }
       this
 
-    case ProcessArticleResponse(item, attempt, response) =>
+    case ProcessArticleResponse(item, response) =>
       response match {
-        case ArticleResponseSuccess(httpResponse: HttpResponse) => httpResponse match {
-          case HttpResponse(StatusCodes.OK, _, entity, _) =>
-            entity.dataBytes.runFold(ByteString(""))(_ ++ _).foreach { body =>
-              log.debug(s"Received response 200 for ${item.link}")
-              val article = FeedArticle(source.key, feed.channel.title, item.title, item.description, item.link, item.guid, body.utf8String,
-                OffsetDateTime.parse(item.pubDate, DateTimeFormatter.RFC_1123_DATE_TIME), OffsetDateTime.now(), Seq.empty)
-
-              cleanerActor ! Messages.Cleaner.ProcessArticle(article)
-            }(context.executionContext)
-
-            cacheItem(item.guid)
-            context.self ! ProcessFeedArticle
-            this
-
-          case resp@HttpResponse(StatusCodes.Found, headers, _, _) =>
-            context.log.warn(s"Received redirect for url: ${item.link}")
-
-            if (attempt < 3) {
-              headers.filter(header => header.name().equals("Location")).foreach { header =>
-                context.log.debug(s"Following redirect: from ${item.link} to ${header.value()}")
-
-                context.pipeToSelf(http.singleRequest(HttpRequest(uri = header.value()))) {
-                  case Success(response) => ProcessArticleResponse(item, attempt + 1, ArticleResponseSuccess(response))
-                  case Failure(e) => ProcessArticleResponse(item, attempt + 1, ArticleResponseError(e))
-                }
-              }
-            } else {
-              context.log.error(s"Number of max redirect attempts reached (${attempt}), skipping article")
-
-              cacheItem(item.guid)
-              context.self ! ProcessFeedArticle
-            }
-
-            resp.discardEntityBytes()
-            this
-
-          case resp@HttpResponse(code, _, _, _) =>
-            context.log.error(s"Request failed for link: ${item.link} with code: ${code}")
-            resp.discardEntityBytes()
-
-            cacheItem(item.guid)
-            context.self ! ProcessFeedArticle
-            this
-        }
+        case ArticleResponseSuccess(article) =>
+          cacheItem(item.guid)
+          cleanerActor ! Messages.Cleaner.ProcessArticle(article)
+          context.self ! ProcessFeedArticle
+          this
 
         case ArticleResponseError(e) =>
-          context.log.error("Error during article retrieval")
-          context.log.error("Error", e)
+          context.log.error("Error during article retrieval", e)
+          cacheItem(item.guid)
+          context.self ! ProcessFeedArticle
           this
       }
   }
