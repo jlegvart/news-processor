@@ -15,11 +15,8 @@ import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
 import scala.concurrent.Future
 
-sealed trait ContentProviderServiceResponse
-
-case class RSSContentProviderResponse() extends ContentProviderServiceResponse {}
-
-case class ContentProviderException(reason: String) extends Throwable(reason)
+case class InvalidResponse(reason: String) extends Throwable(reason)
+case class MaxRedirectAttemptsReached(reason: String) extends Throwable(reason)
 
 
 sealed trait ContentProviderService {
@@ -59,7 +56,7 @@ case class RSSContentProviderService() extends ContentProviderService {
 
       case resp@HttpResponse(code, _, _, _) =>
         resp.discardEntityBytes()
-        Future.failed(ContentProviderException(s"Feed retrieval from ${url} failed. Response code: ${code}"))
+        Future.failed(InvalidResponse(s"Feed retrieval from ${url} failed. Response code: ${code}"))
     }
   }
 
@@ -83,20 +80,16 @@ case class RSSContentProviderService() extends ContentProviderService {
           headers.find(header => header.name().equals("Location")).map { header =>
             getArticle(sourceKey, feedTitle, header.value(), item, attempt + 1)
           }.getOrElse {
-            Future.failed(new RuntimeException(""))
+            Future.failed(InvalidResponse("Missing header 'Location' in response"))
           }
         } else {
-          log.error(s"Number of max redirect attempts reached (${attempt}), skipping article")
           resp.discardEntityBytes()
-
-          Future.failed(new RuntimeException(""))
+          Future.failed(MaxRedirectAttemptsReached(s"Number of max redirect attempts reached (${attempt}), skipping article"))
         }
 
       case resp@HttpResponse(code, _, _, _) =>
-        log.error(s"Request failed for link: ${item.link} with code: ${code}")
         resp.discardEntityBytes()
-
-        Future.failed(new RuntimeException(""))
+        Future.failed(InvalidResponse(s"Request failed for link: ${item.link} with code: ${code}"))
     }
   }
 }

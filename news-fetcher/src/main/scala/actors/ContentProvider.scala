@@ -9,7 +9,7 @@ import com.fasterxml.jackson.dataformat.xml.{JacksonXmlModule, XmlMapper}
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import model.{FeedSource, RSSFeed}
 import org.slf4j.LoggerFactory
-import service.{ContentProviderException, RSSContentProviderService}
+import service.RSSContentProviderService
 
 import scala.collection.mutable
 import scala.concurrent.duration._
@@ -66,8 +66,8 @@ class ContentProvider(context: ActorContext[Command], cleanerActor: ActorRef[Mes
           context.self ! ProcessFeedArticle
           this
 
-        case FeedResponseError(e: ContentProviderException) =>
-          context.log.error("Error during feed retrieval", e)
+        case FeedResponseError(e) =>
+          context.log.error(s"Error during feed retrieval from ${source.source}", e)
           this
       }
 
@@ -77,8 +77,6 @@ class ContentProvider(context: ActorContext[Command], cleanerActor: ActorRef[Mes
         feed = feed.copy(feed.channel.copy(item = feed.channel.item.tail))
 
         if (!cache.contains(item.guid)) {
-          context.log.debug(s"Sending request ${item.link}")
-
           context.pipeToSelf(contentProviderService.getArticle(source.key, feed.channel.title, item.link, item, 1)) {
             case Success(response) => ProcessArticleResponse(item, ArticleResponseSuccess(response))
             case Failure(e) => ProcessArticleResponse(item, ArticleResponseError(e))
@@ -99,7 +97,7 @@ class ContentProvider(context: ActorContext[Command], cleanerActor: ActorRef[Mes
           this
 
         case ArticleResponseError(e) =>
-          context.log.error("Error during article retrieval", e)
+          context.log.error(s"Error during article retrieval ${item.guid}", e)
           cacheItem(item.guid)
           context.self ! ProcessFeedArticle
           this
