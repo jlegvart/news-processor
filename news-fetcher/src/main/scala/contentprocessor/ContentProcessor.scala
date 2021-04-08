@@ -6,7 +6,7 @@ import org.jsoup.Jsoup
 
 case object ContentProcessor {
 
-  val filterTags = "img,a,svg,button,form,figure,dl,iframe"
+  val filterTags = "img,a,svg,button,form,figure,dl,iframe,header"
   val filterPhrases = List(
     "share page",
     "related links",
